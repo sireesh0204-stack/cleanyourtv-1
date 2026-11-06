@@ -12,7 +12,8 @@ final class ThemeSettings {
     boolean sound() { return prefs.getBoolean(SOUND, false); }
     boolean motion() { return prefs.getBoolean(MOTION, true); }
     static boolean enabled(Context context) {
-        return new ThemeSettings(context).prefs.getBoolean("character_enabled", context.getResources().getBoolean(R.bool.itachi_theme));
+        ThemeSettings settings = new ThemeSettings(context);
+        return !"original".equals(settings.selected()) && settings.prefs.getBoolean("character_enabled", context.getResources().getBoolean(R.bool.itachi_theme));
     }
     void select(String id) { change(prefs.edit().putString(THEME, id).putBoolean("character_enabled", true)); }
     void sound(boolean value) { change(prefs.edit().putBoolean(SOUND, value)); }

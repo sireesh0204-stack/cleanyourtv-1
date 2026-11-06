@@ -27,7 +27,11 @@ Copy each local theme into a separate folder in the app's `getExternalFilesDir("
 {"title":"My local theme","wallpaper":"wallpaper.jpg"}
 ```
 
-`name` is accepted as an alternative to `title`. The wallpaper must be a decodable image in the same folder. Nested paths and files outside the theme folder are rejected. Malformed folders are skipped; a missing saved theme falls back to Gojo. Large local images are sampled before decoding. Gallery metadata has a 16 KB limit. Local themes are static wallpaper skins, without character or eye overlays. Keep private artwork outside the repository.
+`name` is accepted as an alternative to `title`. The wallpaper must be a decodable image in the same folder. Nested paths and files outside the theme folder are rejected. Malformed folders are skipped; a missing saved theme falls back to Gojo. Large local images are sampled before decoding. Gallery metadata has a 16 KB limit. Keep private artwork outside the repository.
+
+The local folders `zenitsu`, `saitama`, `itachi`, `batman`, `hogwarts`, `greenhouse`, `library`, `doom` and `doom-color` activate native motion matched to the owner's existing artwork: mixed gold/blue-white lightning, pressure/aura, registered Sharingan eyes and rain, cape/fog, magical lights, and green energy respectively. Other folders remain static. These assets are not distributed. Eye positions and cape regions assume the same artwork composition; replacement artwork needs its own registration.
+
+**Original** selects the standard dark card/banner and dock presentation using a temporary configuration overlay. It does not delete saved settings or app selections. Selecting another theme restores the personal presentation. Focused logos keep their recognizable white shape and 25% application-accent tint; open theme-colored strokes surround them without filling their cutouts. All Apps retains its white outline and frozen frost.
 
 All Apps freezes Home once at one eighth of the display dimensions and blurs the small bitmap on the existing background executor. The full-screen frozen image is fitted to the same decor bounds, with a dark frost tint; it is detached on dismissal. The library focus uses a crisp white rounded border and a flat translucent fill, while Home keeps its existing focus glow.
 
@@ -35,4 +39,4 @@ The module introduces no dependencies, network calls, video, or continuous blur.
 
 ## Focused validation
 
-The gallery changes are covered by `DomainLifecycleTest`, `ThemeCatalogTest`, and `FrostBlurTest`, alongside the existing `LibraryAppsTest`, `LibraryLoadsTest`, `OrderTest`, and `MotionTest` (39 tests total). These check wake ownership and reveal consumption, image sampling and eye counts, blur edge handling, and existing app-library/order/motion behavior. Visual positioning and the one-time backdrop capture cost are checked on the target device.
+The gallery changes are covered by `CharacterStyleTest`, `DomainLifecycleTest`, `ThemeCatalogTest`, and `FrostBlurTest`, alongside the existing `LibraryAppsTest`, `LibraryLoadsTest`, `OrderTest`, and `MotionTest` (42 tests total). These check theme registration, interrupted transition timing, wake ownership and reveal consumption, image sampling and eye counts, blur edge handling, and existing app-library/order/motion behavior. Visual positioning and the one-time backdrop capture cost are checked on the target device.

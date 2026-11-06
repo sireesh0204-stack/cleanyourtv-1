@@ -564,9 +564,13 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             heroArtBlur.setVisibility(View.VISIBLE);
         }
         if (heroArtNext != null) heroArtNext.setVisibility(View.GONE);
+        if (characterTheme.id.equals("original")) {
+            if (heroArt != null) { heroArt.setImageDrawable(null); heroArt.setVisibility(View.GONE); }
+            if (heroArtBlur != null) { heroArtBlur.setImageDrawable(null); heroArtBlur.setVisibility(View.GONE); }
+        }
         if (themedHome) {
             ThemeSettings themeSettings = new ThemeSettings(this);
-            sharingan = new DomainView(this, characterTheme, cfg.animations && !cfg.reducedMotion && themeSettings.motion(), themeSettings.sound());
+            sharingan = new DomainView(this, characterTheme, cfg.animations && !cfg.reducedMotion && themeSettings.motion(), themeSettings.sound(), heroArt.getDrawable());
             root.addView(sharingan, root.indexOfChild(heroArt) + 1, new FrameLayout.LayoutParams(-1, -1));
             root.removeView(glass);
             root.addView(glass, root.indexOfChild(hero) + 1);
@@ -859,7 +863,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             if (sharingan != null && newF != null && newF.getWidth() > 0) {
                 Rect gaze = new Rect(0, 0, newF.getWidth(), newF.getHeight());
                 root.offsetDescendantRectToMyCoords(newF, gaze);
-                sharingan.lookAt(gaze.exactCenterX(), gaze.exactCenterY());
+                sharingan.focusAt(gaze.exactCenterX(), gaze.exactCenterY());
             }
         });
 

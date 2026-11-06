@@ -6,6 +6,8 @@ import android.content.BroadcastReceiver;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.graphics.*;
+import android.graphics.drawable.Drawable;
+import android.graphics.drawable.BitmapDrawable;
 import android.os.SystemClock;
 import android.view.View;
 
@@ -15,6 +17,10 @@ final class DomainView extends View {
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
     private final Bitmap character;
     private final float[][] eyes;
+    private final CharacterEffects effects;
+    private final CharacterStyle style;
+    private final Bitmap wallpaper;
+    private long focusStarted = -1000;
     private final boolean motion, sound;
     private final Runnable frame = this::invalidate;
     private boolean running, receiverRegistered;
@@ -28,11 +34,13 @@ final class DomainView extends View {
             else { lifecycle.screenOn(); beginFrames(); }
         }
     };
-    DomainView(Context context, ThemeCatalog.Theme theme, boolean motion, boolean sound) {
+    DomainView(Context context, ThemeCatalog.Theme theme, boolean motion, boolean sound, Drawable backdrop) {
         super(context); this.theme = theme; this.motion = motion; this.sound = sound;
         int resource = theme.character(context);
         character = resource == 0 ? null : BitmapFactory.decodeResource(getResources(), resource);
-        eyes = theme.builtin() ? eyeCoordinates(theme.id) : new float[0][];
+        eyes = eyeCoordinates(theme.id);
+        effects = new CharacterEffects(theme.id); style = theme.style();
+        wallpaper = backdrop instanceof BitmapDrawable ? ((BitmapDrawable) backdrop).getBitmap() : null;
         setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
         setFocusable(false);
     }
@@ -42,13 +50,15 @@ final class DomainView extends View {
         running = true;
         if (lifecycle.consumeReveal()) {
             revealStarted = SystemClock.uptimeMillis();
-            if (sound && theme.builtin()) { audio = new DomainSound(); audio.play(theme.id.equals("sukuna")); }
+            if (sound && style != CharacterStyle.NONE) { audio = new DomainSound(); audio.play(theme.id.equals("sukuna")); }
         }
         invalidate();
     }
     void stop() { lifecycle.pause(); stopFrames(); }
     private void stopFrames() { running = false; removeCallbacks(frame); if (audio != null) { audio.stop(); audio = null; } }
     void lookAt(float x, float y) { gazeX = x; gazeY = y; if (running) invalidate(); }
+    void focusAt(float x, float y) { focusStarted = SystemClock.uptimeMillis(); lookAt(x, y); }
+    @Override protected void onSizeChanged(int w, int h, int oldw, int oldh) { effects.size(w,h); }
     @Override protected void onAttachedToWindow() {
         super.onAttachedToWindow();
         IntentFilter filter = new IntentFilter(Intent.ACTION_SCREEN_ON); filter.addAction(Intent.ACTION_SCREEN_OFF);
@@ -60,10 +70,12 @@ final class DomainView extends View {
     }
     @Override protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-        if (character == null) return;
+        if (character == null && style == CharacterStyle.NONE) return;
         long now = SystemClock.uptimeMillis();
         boolean animate = running && motion && ValueAnimator.areAnimatorsEnabled();
         float progress = animate ? Math.min(1f, (now - revealStarted) / 1200f) : 1f;
+        if (animate && style != CharacterStyle.SUKUNA) effects.ambient(canvas, now, wallpaper, gazeX / Math.max(1,getWidth()) * 2 - 1, gazeY / Math.max(1,getHeight()) * 2 - 1);
+        if (character != null) {
         float scale = getHeight() * 0.84f / character.getHeight();
         float left = getWidth() * 0.97f - character.getWidth() * scale;
         float top = getHeight() * 0.14f;
@@ -105,34 +117,19 @@ final class DomainView extends View {
             canvas.drawLine(414, 241, 406, 247, paint);
         }
         canvas.restoreToCount(save);
-        if (progress < 1) {
-            paint.setColor(theme.accent);
-            paint.setStyle(Paint.Style.STROKE);
-            if (theme.id.equals("sukuna")) {
-                // Two short, offset cuts; no full-screen flash or repeating pulse.
-                paint.setStrokeWidth(2 * getResources().getDisplayMetrics().density);
-                for (int cut = 0; cut < 2; cut++) {
-                    float phase = Math.max(0f, Math.min(1f, (progress - cut * .23f) / .30f));
-                    if (phase <= 0f || phase >= 1f) continue;
-                    float length = Math.min(1f, phase * 2f);
-                    paint.setAlpha(Math.round((1 - phase) * 125));
-                    float startX = getWidth() * (.60f + cut * .10f);
-                    float startY = getHeight() * (.19f + cut * .13f);
-                    canvas.drawLine(startX, startY, startX + getWidth() * .20f * length,
-                            startY + getHeight() * .31f * length, paint);
-                }
-            } else {
-                paint.setAlpha(Math.round((1 - progress) * 90));
-                paint.setStrokeWidth(2);
-                canvas.drawCircle(getWidth() * .74f, getHeight() * .32f, progress * getWidth(), paint);
-            }
-            paint.setStyle(Paint.Style.FILL);
+        }
+        if (animate) {
+            if (style == CharacterStyle.SUKUNA) effects.ambient(canvas, now, wallpaper, 0, 0);
+            effects.reveal(canvas, progress);
+            effects.focus(canvas, gazeX, gazeY, CharacterStyle.phase(now, focusStarted, 220));
         }
         removeCallbacks(frame);
         if (animate) postDelayed(frame, 33);
     }
     static float blink(long uptime) { long phase = uptime % 5300; return phase < 160 ? Math.abs(phase - 80) / 80f : 1f; }
     static float[][] eyeCoordinates(String theme) {
-        return theme.equals("gojo") ? new float[][]{{526,211},{609,235}} : new float[][]{{376,297},{455,267},{369,322},{469,289}};
+        if (theme.equals("gojo")) return new float[][]{{526,211},{609,235}};
+        if (theme.equals("sukuna")) return new float[][]{{376,297},{455,267},{369,322},{469,289}};
+        return new float[0][];
     }
 }

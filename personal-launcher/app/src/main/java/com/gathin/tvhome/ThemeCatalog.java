@@ -5,6 +5,7 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
+import android.graphics.drawable.ColorDrawable;
 import org.json.JSONObject;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
@@ -23,10 +24,12 @@ final class ThemeCatalog {
             this.id = id; this.name = name; this.accent = accent; this.wallpaper = wallpaper;
         }
         boolean builtin() { return wallpaper == null; }
+        CharacterStyle style() { return CharacterStyle.forTheme(id); }
         Drawable background(Context context) {
             return background(context, 1920, 1080);
         }
         Drawable background(Context context, int width, int height) {
+            if (id.equals("original")) return new ColorDrawable(0xFF050810);
             if (wallpaper != null) {
                 Bitmap bitmap = decode(wallpaper, width, height);
                 if (bitmap != null) return new BitmapDrawable(context.getResources(), bitmap);
@@ -34,13 +37,14 @@ final class ThemeCatalog {
             return context.getDrawable(id.equals("sukuna") ? R.drawable.jjk_sukuna_background : R.drawable.jjk_gojo_background);
         }
         int character(Context context) {
-            return builtin() ? (id.equals("sukuna") ? R.drawable.jjk_sukuna_character : R.drawable.jjk_gojo_character) : 0;
+            return id.equals("gojo") ? R.drawable.jjk_gojo_character : id.equals("sukuna") ? R.drawable.jjk_sukuna_character : 0;
         }
     }
     static List<Theme> list(Context context) {
         List<Theme> themes = new ArrayList<>();
         themes.add(new Theme("gojo", "Gojo · Infinite Void", 0xFF74DCFF, null));
         themes.add(new Theme("sukuna", "Sukuna · Malevolent Shrine", 0xFFFF5266, null));
+        themes.add(new Theme("original", "Original", 0xFFFFFFFF, null));
         File directory = context.getExternalFilesDir("themes");
         File[] folders = directory == null ? null : directory.listFiles(File::isDirectory);
         if (folders == null) return themes;
@@ -57,7 +61,8 @@ final class ThemeCatalog {
                 BitmapFactory.Options bounds = new BitmapFactory.Options(); bounds.inJustDecodeBounds = true;
                 BitmapFactory.decodeFile(wallpaper.getPath(), bounds);
                 if (bounds.outWidth <= 0 || bounds.outHeight <= 0) continue;
-                themes.add(new Theme("local:" + folder.getName(), data.optString("name", data.optString("title", folder.getName())), 0xFFBFCAD8, wallpaper));
+                String id = "local:" + folder.getName();
+                themes.add(new Theme(id, data.optString("name", data.optString("title", folder.getName())), CharacterStyle.forTheme(id).primary, wallpaper));
             } catch (Exception ignored) { /* A malformed local folder cannot prevent Home opening. */ }
         }
         return themes;

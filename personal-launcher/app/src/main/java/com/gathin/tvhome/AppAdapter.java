@@ -482,7 +482,8 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         if (ThemeSettings.enabled(ctx)) {
             h.card.setBackground(null);
             h.name.setVisibility(View.GONE);
-            ThemeWordmark mark = new ThemeWordmark(e.pkg, ambientColorAt(position), e.icon);
+            ThemeWordmark mark = new ThemeWordmark(e.pkg, ambientColorAt(position), e.icon,
+                    CharacterStyle.forTheme(new ThemeSettings(ctx).selected()));
             mark.setFocused(focused);
             h.banner.setImageDrawable(mark);
             h.banner.setScaleType(ImageView.ScaleType.FIT_CENTER);

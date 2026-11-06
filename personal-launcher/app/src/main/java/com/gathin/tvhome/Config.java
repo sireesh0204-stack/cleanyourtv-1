@@ -622,6 +622,15 @@ final class Config {
         Festival festival = json == null ? Festival.NONE : Festival.parse(string(json, "festival", ""),
                 string(json, "festival_until", ""), string(json, "greeting", ""), string(json, "accent_color", ""));
 
+        // Stock presentation is a temporary overlay, never a reset of the owner's saved choices.
+        if ("original".equals(new ThemeSettings(ctx).selected())) {
+            columns = 4; singleRow = false; dockRow = true; dockBand = true;
+            dockTitle = true; iconOnlyButtons = false; uniformTiles = false;
+            cinematic = false; ambientGlow = false; appGlow = false;
+            background = 0xFF050810; glassStyle = GLASS_DEFAULT;
+            wallpaperEnabled = false; wallpaper = null; wallpapers.clear();
+            skyIntensity = 0; dockGlass = false;
+        }
         return new Config(dock, fillDock, hidden, libraryApps, liveTv, liveTvAction, liveTvInputId, packageMap(launchActions), packageMap(appLabels),
                 packageMap(appBanners), panelService, panelAction, panelExtra, coocaaSources, inputAction, inputUriScheme, Math.max(1, columns),
                 Math.max(0, rowsBelow), animations, advancedEffects, shamsi, greetingName, moduleCards, reducedMotion, bootToLiveTv,

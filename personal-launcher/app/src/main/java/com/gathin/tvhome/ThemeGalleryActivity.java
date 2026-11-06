@@ -38,7 +38,7 @@ public final class ThemeGalleryActivity extends Activity {
             card.setFocusable(true); card.setClickable(true); card.setContentDescription(theme.name);
             card.setBackground(plate(false));
             ImageView preview = new ImageView(this);
-            preview.setImageDrawable(theme.background(this, dp(192), dp(66)));
+            preview.setImageDrawable(theme.id.equals("original") ? getDrawable(R.drawable.original_preview) : theme.background(this, dp(192), dp(66)));
             preview.setScaleType(ImageView.ScaleType.CENTER_CROP);
             card.addView(preview, new LinearLayout.LayoutParams(-1, dp(66)));
             TextView label = text((settings.selected().equals(theme.id) ? "✓  " : "") + theme.name, 14);

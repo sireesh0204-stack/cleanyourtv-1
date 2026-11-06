@@ -37,10 +37,12 @@ public class GlassView extends View {
     private final boolean spotlight;
     private boolean libraryOutline;
     private final Paint spotlightPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final ThemeDecoration decoration;
 
     public GlassView(Context context, AttributeSet attrs) {
         super(context, attrs);
         spotlight = ThemeSettings.enabled(context);
+        decoration = new ThemeDecoration(CharacterStyle.forTheme(new ThemeSettings(context).selected()));
         density = getResources().getDisplayMetrics().density;
         radius = 20f * density;
         rim.setStyle(Paint.Style.STROKE);
@@ -169,6 +171,7 @@ public class GlassView extends View {
         }
         if (spotlight) {
             canvas.drawOval(rect, spotlightPaint);
+            decoration.draw(canvas, rect, 1.3f * density, 155);
             return;
         }
 

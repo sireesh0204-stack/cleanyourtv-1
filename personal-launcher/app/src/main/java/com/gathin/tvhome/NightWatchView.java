@@ -69,7 +69,7 @@ final class NightWatchView extends View {
         float dp = getResources().getDisplayMetrics().density;
         paint.setColor(0x3801060D);
         canvas.drawRect(0, 0, getWidth(), getHeight(), paint);
-        for (int i = 0; i < (theme.builtin() ? 28 : 0); i++) {
+        for (int i = 0; i < (theme.style() != CharacterStyle.NONE ? 22 : 0); i++) {
             float seed = (i * 0.754878f + 0.173f) % 1f;
             float x = ((i * 0.381966f) % 1f) * getWidth()
                     + (float) Math.sin(positionTime * 0.12f + i) * 9 * dp;
