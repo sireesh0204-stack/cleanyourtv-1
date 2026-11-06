@@ -4422,7 +4422,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                         handler.removeCallbacks(autoOpenSettingsRunnable);
                         if (settingsDropdownPopup != null) settingsDropdownPopup.dismiss();
                     }
-                    if (btnSettings != null) btnSettings.requestFocus();
+                    if (btnSettings != null) btnSettings.requestFocusFromTouch();
                     handler.postDelayed(() -> isTransferringFocusBetweenPillAndDropdown = false, 60L);
                     return true;
                 } else if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
@@ -4439,7 +4439,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                     suppressNextAutoOpenForView = btnSettings;
                     handler.removeCallbacks(autoOpenSettingsRunnable);
                     if (settingsDropdownPopup != null) settingsDropdownPopup.dismiss();
-                    if (btnSettings != null) btnSettings.requestFocus();
+                    if (btnSettings != null) btnSettings.requestFocusFromTouch();
                     return true;
                 }
                 return false;
