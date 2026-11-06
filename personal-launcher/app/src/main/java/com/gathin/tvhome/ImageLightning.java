@@ -1,84 +1,109 @@
 package com.gathin.tvhome;
 
 import android.graphics.*;
-import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.Executor;
 
-/** Animates the wallpaper's existing bolts, not newly drawn geometric paths. */
+/** Moves the wallpaper's own bolt branches, with a cached clean patch behind them. */
 final class ImageLightning {
-    private volatile Bitmap ready;
-    private boolean closed;
-    private Bitmap mask;
+    private static final class Branch {
+        final Bitmap bitmap;
+        final int left, top;
+        Branch(Bitmap bitmap, int left, int top) { this.bitmap = bitmap; this.left = left; this.top = top; }
+    }
+    private static final class Layers {
+        final Bitmap repair, steady;
+        final List<Branch> branches;
+        Layers(Bitmap repair, Bitmap steady, List<Branch> branches) { this.repair = repair; this.steady = steady; this.branches = branches; }
+        void recycleUnused() { repair.recycle(); steady.recycle(); for (Branch b : branches) b.bitmap.recycle(); }
+    }
+    private volatile Layers ready;
+    private volatile boolean closed;
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
-    private final Matrix imageMatrix = new Matrix(), sweepMatrix = new Matrix();
-    private final LinearGradient sweep = new LinearGradient(0, 0, 1, .18f,
-            new int[]{0x00FFC448, 0x88FFD36A, 0xFFBFEFFF, 0x88FFD36A, 0x00FFC448},
-            new float[]{0, .30f, .5f, .70f, 1}, Shader.TileMode.CLAMP);
-    private BitmapShader stencil;
-    private Shader energy;
+    private final Matrix imageMatrix = new Matrix();
+    private final float[] movement = new float[3];
 
     ImageLightning(Bitmap source, Executor executor) {
-        // Share the decoded wallpaper. Only one alpha texture and one scanline are allocated.
+        int w = source.getWidth(), h = source.getHeight();
         executor.execute(() -> {
-            int w = source.getWidth(), h = source.getHeight();
-            Bitmap result = Bitmap.createBitmap(w, h, Bitmap.Config.ALPHA_8);
-            int stride = result.getRowBytes();
-            byte[] alpha = new byte[stride * h];
-            int[] row = new int[w];
-            for (int y = 0; y < h; y++) {
-                synchronized (this) { if (closed) { result.recycle(); return; } }
-                source.getPixels(row, 0, w, 0, y, w, 1);
-                for (int x = 0; x < w; x++)
-                    alpha[y * stride + x] = (byte) LightningMask.alpha(row[x], x / (float) w, y / (float) h);
-            }
-            result.copyPixelsFromBuffer(ByteBuffer.wrap(alpha));
+            if (closed) return;
+            int[] original = new int[w * h];
+            source.getPixels(original, 0, w, 0, 0, w, h);
+            LightningPixels pixels = LightningPixels.split(original, w, h);
+            if (closed) return;
+            List<Branch> moving = branches(pixels.bolts, pixels.repair, original, w, h);
+            for (int y = 0; y < h; y++) for (int x = 0; x < w; x++)
+                if (!LightningMask.protectedArtwork(x / (float) w, y / (float) h)) original[y * w + x] = 0;
+            Layers result = new Layers(Bitmap.createBitmap(pixels.repair, w, h, Bitmap.Config.ARGB_8888),
+                    Bitmap.createBitmap(original, w, h, Bitmap.Config.ARGB_8888), moving);
             synchronized (this) {
-                if (closed) result.recycle();
+                if (closed) result.recycleUnused();
                 else ready = result;
             }
         });
     }
 
-    void draw(Canvas canvas, int w, int h, long now, float wakeProgress) {
-        Bitmap available = ready;
-        if (available == null) return;
-        if (mask == null) {
-            mask = available;
-            stencil = new BitmapShader(mask, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
-            // SRC_IN keeps the traveling gradient strictly inside the extracted bolt alpha.
-            energy = new ComposeShader(stencil, sweep, PorterDuff.Mode.SRC_IN);
+    private List<Branch> branches(int[] pixels, int[] repair, int[] original, int w, int h) {
+        List<Branch> result = new ArrayList<>();
+        boolean[] seen = new boolean[pixels.length];
+        int[] queue = new int[pixels.length];
+        for (int start = 0; start < pixels.length; start++) {
+            if (seen[start] || pixels[start] >>> 24 < 8) continue;
+            int head = 0, tail = 1, left = start % w, right = left, top = start / w, bottom = top;
+            queue[0] = start; seen[start] = true;
+            while (head < tail) {
+                int i = queue[head++], x = i % w, y = i / w;
+                left = Math.min(left, x); right = Math.max(right, x); top = Math.min(top, y); bottom = Math.max(bottom, y);
+                for (int dy = -1; dy <= 1; dy++) for (int dx = -1; dx <= 1; dx++) {
+                    int nx = x + dx, ny = y + dy;
+                    if (nx < 0 || nx >= w || ny < 0 || ny >= h) continue;
+                    int n = ny * w + nx;
+                    if (!seen[n] && pixels[n] >>> 24 >= 8) { seen[n] = true; queue[tail++] = n; }
+                }
+            }
+            if (tail < 500) {
+                // Preserve tiny fragments in the static repair layer instead of issuing dozens of draws.
+                for (int i = 0; i < tail; i++) repair[queue[i]] = original[queue[i]];
+                continue;
+            }
+            int bw = right - left + 1, bh = bottom - top + 1;
+            int[] crop = new int[bw * bh];
+            for (int i = 0; i < tail; i++) {
+                int point = queue[i]; crop[(point / w - top) * bw + point % w - left] = pixels[point];
+            }
+            result.add(new Branch(Bitmap.createBitmap(crop, bw, bh, Bitmap.Config.ARGB_8888), left, top));
         }
-        float scale = Math.max(w / (float) mask.getWidth(), h / (float) mask.getHeight());
+        return result;
+    }
+
+    void draw(Canvas canvas, int w, int h, long now, float wakeProgress) {
+        Layers layers = ready;
+        if (layers == null) return;
+        int bw = layers.repair.getWidth(), bh = layers.repair.getHeight();
+        float scale = Math.max(w / (float) bw, h / (float) bh);
         imageMatrix.setScale(scale, scale);
-        imageMatrix.postTranslate((w - mask.getWidth() * scale) * .5f,
-                (h - mask.getHeight() * scale) * .5f);
-        stencil.setLocalMatrix(imageMatrix);
-
-        float breath = (float) (.5 + .5 * Math.sin(now / 1200.0));
-        paint.setShader(null);
-        paint.setColor(Color.BLACK);
-        paint.setAlpha((int) (155 - 100 * breath));
-        canvas.drawBitmap(mask, imageMatrix, paint);
-        paint.setColor(0xFFFFC448);
-        paint.setAlpha((int) (35 + 80 * breath));
-        canvas.drawBitmap(mask, imageMatrix, paint);
-
-        float phase = wakeProgress < 1 ? wakeProgress : (now % 4800) / 4800f;
-        sweepMatrix.setScale(w * .48f, h * 1.6f);
-        sweepMatrix.postTranslate(w * (-.65f + phase * 2.2f), -h * .3f);
-        sweep.setLocalMatrix(sweepMatrix);
-        paint.setShader(energy);
-        paint.setAlpha(235);
-        canvas.drawRect(0, 0, w, h, paint);
-        paint.setShader(null);
+        imageMatrix.postTranslate((w - bw * scale) * .5f, (h - bh * scale) * .5f);
+        int save = canvas.save();
+        canvas.concat(imageMatrix);
+        canvas.drawBitmap(layers.repair, 0, 0, paint);
+        for (int i = 0; i < layers.branches.size(); i++) {
+            Branch branch = layers.branches.get(i);
+            LightningMotion.transform(movement, bw, bh, now, i);
+            int local = canvas.save();
+            canvas.translate(branch.left + movement[0], branch.top + movement[1]);
+            canvas.rotate(movement[2], branch.bitmap.getWidth() * .5f, branch.bitmap.getHeight() * .5f);
+            canvas.drawBitmap(branch.bitmap, 0, 0, paint);
+            canvas.restoreToCount(local);
+        }
+        // A cached character cutout avoids rasterizing a complex destination clip every frame.
+        canvas.drawBitmap(layers.steady, 0, 0, paint);
+        canvas.restoreToCount(save);
     }
 
     synchronized void close() {
         closed = true;
-        // Displayed textures may still be referenced by RenderThread; let their owner be GC'd.
+        // RenderThread may still reference displayed textures; only unpublished results are recycled.
         ready = null;
-        mask = null;
-        energy = null;
-        stencil = null;
     }
 }
