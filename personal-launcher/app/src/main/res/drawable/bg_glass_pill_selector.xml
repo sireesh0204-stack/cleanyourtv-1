@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- D-Pad Pressed / Clicked State -->
+    <item android:state_pressed="true">
+        <shape android:shape="rectangle">
+            <corners android:radius="999dp" />
+            <gradient
+                android:angle="135"
+                android:endColor="#40FFFFFF"
+                android:startColor="#59FFFFFF"
+                android:type="linear" />
+            <stroke
+                android:width="1.5dp"
+                android:color="#FFFFFFFF" />
+        </shape>
+    </item>
+
+    <!-- D-Pad Focused State (High visibility for TV remote navigation) -->
+    <item android:state_focused="true">
+        <layer-list>
+            <!-- Outer subtle focus halo -->
+            <item>
+                <shape android:shape="rectangle">
+                    <corners android:radius="999dp" />
+                    <solid android:color="#1A38BDF8" />
+                </shape>
+            </item>
+            <!-- Inner frosted glass capsule with crisp white rim -->
+            <item>
+                <shape android:shape="rectangle">
+                    <corners android:radius="999dp" />
+                    <gradient
+                        android:angle="135"
+                        android:endColor="#29FFFFFF"
+                        android:startColor="#45FFFFFF"
+                        android:type="linear" />
+                    <stroke
+                        android:width="1.5dp"
+                        android:color="#E6FFFFFF" />
+                </shape>
+            </item>
+        </layer-list>
+    </item>
+
+    <!-- Default Resting Frosted Glass State -->
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="999dp" />
+            <gradient
+                android:angle="135"
+                android:endColor="#12FFFFFF"
+                android:startColor="#24FFFFFF"
+                android:type="linear" />
+            <stroke
+                android:width="1dp"
+                android:color="#33FFFFFF" />
+        </shape>
+    </item>
+
+</selector>
