@@ -28,15 +28,9 @@ final class ThemeWordmark extends Drawable {
     private int foreground = 0xFFFFFF;
     private final Bitmap iconMask;
     private final RectF iconBounds = new RectF(-32, -32, 32, 32);
-    private final RectF finishBounds = new RectF(-45, -35, 45, 35);
-    private final ThemeDecoration decoration;
     private boolean highlighted;
 
     ThemeWordmark(String pkg, int accent, Drawable icon) {
-        this(pkg, accent, icon, CharacterStyle.NONE);
-    }
-    ThemeWordmark(String pkg, int accent, Drawable icon, CharacterStyle style) {
-        decoration = new ThemeDecoration(style);
         int r = Math.round(255 * 0.75f + ((accent >> 16) & 255) * 0.25f);
         int g = Math.round(255 * 0.75f + ((accent >> 8) & 255) * 0.25f);
         int b = Math.round(255 * 0.75f + (accent & 255) * 0.25f);
@@ -166,7 +160,6 @@ final class ThemeWordmark extends Drawable {
         canvas.translate(b.exactCenterX(), b.exactCenterY());
         float scale = Math.min(b.width() / 200f, b.height() / 110f);
         canvas.scale(scale, scale);
-        if (highlighted) decoration.draw(canvas, finishBounds, 1.1f, alpha * 2 / 3);
         if (youtube) {
             paint.setColor((alpha << 24) | foreground);
             canvas.drawRoundRect(-32, -22, 32, 22, 9, 9, paint);

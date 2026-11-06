@@ -13,6 +13,8 @@ import android.graphics.Shader;
 import android.graphics.drawable.Drawable;
 import android.util.AttributeSet;
 import android.view.View;
+import android.animation.ValueAnimator;
+import android.view.animation.AccelerateDecelerateInterpolator;
 
 /**
  * A translucent glass slab: soft sheen fill, bright top specular, crisp rim and a faint outer glow.
@@ -37,12 +39,12 @@ public class GlassView extends View {
     private final boolean spotlight;
     private boolean libraryOutline;
     private final Paint spotlightPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final ThemeDecoration decoration;
+    private ValueAnimator breathing;
+    private boolean loopRequested, loopAllowed;
 
     public GlassView(Context context, AttributeSet attrs) {
         super(context, attrs);
         spotlight = ThemeSettings.enabled(context);
-        decoration = new ThemeDecoration(CharacterStyle.forTheme(new ThemeSettings(context).selected()));
         density = getResources().getDisplayMetrics().density;
         radius = 20f * density;
         rim.setStyle(Paint.Style.STROKE);
@@ -91,8 +93,33 @@ public class GlassView extends View {
     /** Library-only treatment; Home keeps its existing radial focus. */
     void setLibraryOutline() {
         libraryOutline = true;
+        updateLoop();
         invalidate();
     }
+
+    void setLoopAllowed(boolean allowed) { loopAllowed = allowed; updateLoop(); }
+    void setLooping(boolean requested) { loopRequested = requested; updateLoop(); }
+    private void updateLoop() {
+        boolean run = spotlight && !libraryOutline && loopAllowed && loopRequested
+                && isAttachedToWindow() && getWindowVisibility() == VISIBLE && isShown()
+                && hasWindowFocus() && ValueAnimator.areAnimatorsEnabled();
+        if (!run) {
+            if (breathing != null) { breathing.cancel(); breathing = null; }
+            setScaleX(1f); setScaleY(1f);
+        } else if (breathing == null) {
+            breathing = ValueAnimator.ofFloat(1f, 1.04f);
+            breathing.setDuration(2400);
+            breathing.setRepeatCount(ValueAnimator.INFINITE);
+            breathing.setRepeatMode(ValueAnimator.REVERSE);
+            breathing.setInterpolator(new AccelerateDecelerateInterpolator());
+            breathing.addUpdateListener(a -> { float scale = (float) a.getAnimatedValue(); setScaleX(scale); setScaleY(scale); });
+            breathing.start();
+        }
+    }
+    @Override protected void onAttachedToWindow() { super.onAttachedToWindow(); updateLoop(); }
+    @Override protected void onDetachedFromWindow() { setLooping(false); super.onDetachedFromWindow(); }
+    @Override public void onWindowFocusChanged(boolean focused) { super.onWindowFocusChanged(focused); updateLoop(); }
+    @Override protected void onWindowVisibilityChanged(int visibility) { super.onWindowVisibilityChanged(visibility); updateLoop(); }
 
     @Override
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
@@ -171,7 +198,6 @@ public class GlassView extends View {
         }
         if (spotlight) {
             canvas.drawOval(rect, spotlightPaint);
-            decoration.draw(canvas, rect, 1.3f * density, 155);
             return;
         }
 

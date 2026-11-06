@@ -20,7 +20,6 @@ final class DomainView extends View {
     private final CharacterEffects effects;
     private final CharacterStyle style;
     private final Bitmap wallpaper;
-    private long focusStarted = -1000;
     private final boolean motion, sound;
     private final Runnable frame = this::invalidate;
     private boolean running, receiverRegistered;
@@ -57,7 +56,6 @@ final class DomainView extends View {
     void stop() { lifecycle.pause(); stopFrames(); }
     private void stopFrames() { running = false; removeCallbacks(frame); if (audio != null) { audio.stop(); audio = null; } }
     void lookAt(float x, float y) { gazeX = x; gazeY = y; if (running) invalidate(); }
-    void focusAt(float x, float y) { focusStarted = SystemClock.uptimeMillis(); lookAt(x, y); }
     @Override protected void onSizeChanged(int w, int h, int oldw, int oldh) { effects.size(w,h); }
     @Override protected void onAttachedToWindow() {
         super.onAttachedToWindow();
@@ -121,7 +119,6 @@ final class DomainView extends View {
         if (animate) {
             if (style == CharacterStyle.SUKUNA) effects.ambient(canvas, now, wallpaper, 0, 0);
             effects.reveal(canvas, progress);
-            effects.focus(canvas, gazeX, gazeY, CharacterStyle.phase(now, focusStarted, 220));
         }
         removeCallbacks(frame);
         if (animate) postDelayed(frame, 33);

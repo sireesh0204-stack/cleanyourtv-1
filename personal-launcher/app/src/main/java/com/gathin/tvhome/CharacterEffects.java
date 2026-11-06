@@ -174,13 +174,4 @@ final class CharacterEffects {
         }
         paint.setStyle(Paint.Style.FILL);
     }
-    void focus(Canvas c,float x,float y,float progress) {
-        if(progress>=1||style==CharacterStyle.NONE)return;
-        paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(1.5f);paint.setColor(style.primary);paint.setAlpha((int)((1-progress)*120));
-        float rx=w*.035f*(1+progress*.4f),ry=h*.034f*(1+progress*.4f);
-        if(style==CharacterStyle.ZENITSU) lightning(c,w*.75f,h*.48f,x,y,progress*4,style.secondary,(int)((1-progress)*100));
-        else if(style==CharacterStyle.SUKUNA){c.drawLine(x-rx,y+ry,x+rx,y-ry,paint);}
-        else {rect.set(x-rx,y-ry,x+rx,y+ry);c.drawOval(rect,paint);}
-        paint.setStyle(Paint.Style.FILL);
-    }
 }

@@ -182,6 +182,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private TextClock dateView;
     private View clockDividerView;
     private View topButtonsContainer;
+    private boolean bottomControls;
     private final Runnable ambientIdleRunnable = this::enterAmbientIdleMode;
     private final Runnable showIdleClock = this::enterAmbientIdleMode;
 
@@ -519,6 +520,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         sky.setIntensity(cfg.skyIntensity);
         glass = findViewById(R.id.glass);
         glass.setStyle(cfg.glassStyle);
+        glass.setLoopAllowed(cfg.animations && !cfg.reducedMotion);
         if (festive) glass.setAccent(festival.accentColor());
         ambient = findViewById(R.id.ambient);
         ambient.forceHasOverlappingRendering(false);
@@ -775,6 +777,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             // A single row never shows the names under its tiles (the title above the row names the app), so the
             // 7dp gap and 22dp label item_app.xml keeps for them would only lift the row: sit it that much lower.
             if (singleRow && !cfg.alwaysShowNames) want += (int) (29 * density);
+            if (bottomControls && themedHome) want += Math.round(32 * density);
             if (grid.getPaddingTop() != want) {
                 grid.setPadding(grid.getPaddingLeft(), want, grid.getPaddingRight(), grid.getPaddingBottom());
                 // A vertical grid parks the dock on the new padding line by scrolling (onTileFocused); a sideways
@@ -863,7 +866,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             if (sharingan != null && newF != null && newF.getWidth() > 0) {
                 Rect gaze = new Rect(0, 0, newF.getWidth(), newF.getHeight());
                 root.offsetDescendantRectToMyCoords(newF, gaze);
-                sharingan.focusAt(gaze.exactCenterX(), gaze.exactCenterY());
+                sharingan.lookAt(gaze.exactCenterX(), gaze.exactCenterY());
             }
         });
 
@@ -1040,6 +1043,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         sky.update();
         wallpaperPlayer.start();
         if (sharingan != null) sharingan.start();
+        glass.setLooping(glassShown && !isAmbientIdleMode);
         handler.postDelayed(minuteTick, MINUTE_MS);
         if (festive && diya != null) {
             diya.start();
@@ -1219,6 +1223,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         endReorder();   // Home or another app while reordering keeps the order so far
         wallpaperPlayer.stop();
         if (sharingan != null) sharingan.stop();
+        glass.setLooping(false);
         if (nightWatch != null) nightWatch.stop();
         stopAmbientAnimation();
         hero.animate().cancel();
@@ -1300,6 +1305,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
+        if (glass != null) glass.setLooping(hasFocus && glassShown && !isAmbientIdleMode);
         if (hasFocus) {
             startPendingSettingsReorder();
             if (libraryFocusPending && appLibrary == null) focusLibrary();
@@ -1723,6 +1729,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     public void onTileFocused(int position, View card) {
         lastFocused = position;
         lastFocusedKey = adapter.keyAt(position);
+        glass.setLooping(!isAmbientIdleMode);
         // Focus restored before the first layout (cold start): the tile has no size yet, and the glass
         // would be sized to 2*pad. Run again once the tile is laid out.
         if (card.getWidth() == 0) {
@@ -1735,7 +1742,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         Rect r = tileRect;
         r.set(0, 0, card.getWidth(), card.getHeight());
         root.offsetDescendantRectToMyCoords(card, r);
-        float pad = (themedHome ? 28f : 6f) * density;
+        float pad = (themedHome ? 20f : 6f) * density;
         float scale = adapter.focusScale();
         float w = card.getWidth() * scale + 2 * pad;
         float h = card.getHeight() * scale + 2 * pad;
@@ -1809,7 +1816,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         RecyclerView.ViewHolder vh = grid.findViewHolderForAdapterPosition(pos);
         View card = vh == null ? null : vh.itemView.findViewById(R.id.card);
         if (card == null || card.getWidth() <= 0 || !card.isFocused()) return;
-        float pad = (themedHome ? 28f : 6f) * density;
+        float pad = (themedHome ? 20f : 6f) * density;
         float scale = adapter.focusScale();
         int w = (int) (card.getWidth() * scale + 2 * pad);
         int h = (int) (card.getHeight() * scale + 2 * pad);
@@ -2295,6 +2302,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     }
 
     private void hideGlass() {
+        glass.setLooping(false);
         if (dockDecoration != null) dockDecoration.setAccentColor(0);
         if (ambientGlow && ambient != null) ambient.animate().alpha(0f).setDuration(200).start();
         if (!glassShown) return;
@@ -2499,6 +2507,15 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     public boolean onTileVerticalKey(int position, int keyCode) {
         int count = adapter.appCount();
         int target;
+        if (bottomControls && (keyCode == KeyEvent.KEYCODE_DPAD_UP || keyCode == KeyEvent.KEYCODE_DPAD_DOWN)) {
+            if (keyCode == KeyEvent.KEYCODE_DPAD_UP && (singleRow || position < COLUMNS)) return true;
+            int lastRow = count == 0 ? 0 : ((count - 1) / COLUMNS) * COLUMNS;
+            if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN && (singleRow || position >= lastRow)) {
+                View targetControl = firstTopButton();
+                if (targetControl != null) targetControl.requestFocus();
+                return true;
+            }
+        }
         if (singleRow) {
             // One row: Up leaves for the top bar, Down has nowhere to go, and Left/Right walk the whole row,
             // stopping at its two ends (the default focus search scrolls the row to the next tile).
@@ -2954,14 +2971,14 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 Drawable d = getDrawable(icon == R.drawable.ic_wifi ? R.drawable.ic_wifi_signal : icon);
                 if (d != null) {
                     d.setBounds(0, 0, iconPx, iconPx);
-                    if (themedHome) { btnWifi.setCompoundDrawables(null, null, null, null); btnWifi.setForeground(d); btnWifi.setForegroundGravity(Gravity.CENTER); }
+                    if (themedHome || bottomControls) { btnWifi.setCompoundDrawables(null, null, null, null); btnWifi.setForeground(d); btnWifi.setForegroundGravity(Gravity.CENTER); }
                     else btnWifi.setCompoundDrawables(d, null, null, null);
                 }
             }
             ColorStateList tint = online ? wifiOnlineTint : wifiPlainTint;
             // wifi_status_warnings: orange while connected but not validated (a captive portal), red while offline.
             if (wifiNoInternetTint != null) tint = !online ? wifiOfflineTint : validated ? wifiOnlineTint : wifiNoInternetTint;
-            if (themedHome && btnWifi.getForeground() != null) btnWifi.getForeground().setTintList(tint);
+            if ((themedHome || bottomControls) && btnWifi.getForeground() != null) btnWifi.getForeground().setTintList(tint);
             if (wifiOnlineTint != null && btnWifi.getCompoundDrawableTintList() != tint) {
                 btnWifi.setCompoundDrawableTintList(tint);
             }
@@ -3419,15 +3436,41 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         return popup;
     }
 
-    /** Drop in: fade and unfold from the top edge, hanging under the anchor pill. */
+    /** Anchored menus unfold toward the available screen space. */
     private void dropIn(PopupWindow popup, View panel, View anchor, int gravity) {
-        panel.setAlpha(0f);
-        panel.setPivotY(0f);
-        panel.setScaleY(0.92f);
-        panel.setTranslationY(-8 * density);
-        popup.showAsDropDown(anchor, 0, (int) (10 * density), gravity);
+        boolean upward = bottomControls && isControlBarAnchor(anchor);
+        panel.setAlpha(0f); panel.setScaleY(reducedMotion ? 1f : 0.96f);
+        if (upward) {
+            int[] at = new int[2], origin = new int[2];
+            anchor.getLocationOnScreen(at); root.getLocationOnScreen(origin);
+            int inset = Math.round(16 * density), gap = Math.round(10 * density);
+            int width = popup.getWidth() > 0 ? popup.getWidth() : Math.round(290 * density);
+            width = Math.min(width, root.getWidth() - 2 * inset);
+            int available = Math.max(1, at[1] - origin[1] - gap - inset);
+            panel.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(available, View.MeasureSpec.AT_MOST));
+            int height = panel.getMeasuredHeight();
+            popup.setWidth(width); popup.setHeight(height);
+            boolean alignEnd = gravity != Gravity.START;
+            int x = ControlBarGeometry.popupLeft(at[0] - origin[0], at[0] - origin[0] + anchor.getWidth(), width, root.getWidth(), inset, alignEnd);
+            int y = ControlBarGeometry.popupTop(at[1] - origin[1], height, gap, inset);
+            panel.setPivotY(height); panel.setTranslationY(reducedMotion ? 0 : 8 * density);
+            popup.showAtLocation(root, Gravity.NO_GRAVITY, origin[0] + x, origin[1] + y);
+        } else {
+            panel.setPivotY(0f); panel.setTranslationY(reducedMotion ? 0 : -8 * density);
+            popup.showAsDropDown(anchor, 0, (int) (10 * density), gravity);
+        }
         panel.animate().alpha(1f).scaleY(1f).translationY(0f).setDuration(reducedMotion ? Motion.REDUCED_MS : 220)
                 .setInterpolator(new android.view.animation.DecelerateInterpolator(1.6f)).start();
+    }
+
+    private boolean isControlBarAnchor(View anchor) {
+        for (View view = anchor; view != null;) {
+            if (view == topButtonsContainer) return true;
+            android.view.ViewParent parent = view.getParent();
+            view = parent instanceof View ? (View) parent : null;
+        }
+        return false;
     }
 
     private void addSeparator(LinearLayout rows) {
@@ -3796,14 +3839,18 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     // =========================================================================
 
     private List<View> getVisibleTopCapsuleButtons() {
-        List<View> visible = new ArrayList<>(3);
-        View quickInputs = findViewById(R.id.btnJioBox);
-        if (quickInputs != null && quickInputs.isShown()) visible.add(quickInputs);
-        else if (btnInputs != null && btnInputs.getVisibility() == View.VISIBLE) visible.add(btnInputs);
-        if (btnWifi != null && btnWifi.getVisibility() == View.VISIBLE) visible.add(btnWifi);
-        View btnSettings = findViewById(R.id.btnSettings);
-        if (btnSettings != null && btnSettings.getVisibility() == View.VISIBLE) visible.add(btnSettings);
+        List<View> visible = new ArrayList<>();
+        collectControlButtons((ViewGroup) topButtonsContainer, visible);
         return visible;
+    }
+
+    private void collectControlButtons(ViewGroup parent, List<View> buttons) {
+        for (int i = 0; i < parent.getChildCount(); i++) {
+            View child = parent.getChildAt(i);
+            if (child.getVisibility() != View.VISIBLE || !child.isEnabled()) continue;
+            if (child.isFocusable()) buttons.add(child);
+            else if (child instanceof ViewGroup) collectControlButtons((ViewGroup) child, buttons);
+        }
     }
 
     private View getAdjacentTopCapsuleButton(View current, int direction) {
@@ -3857,6 +3904,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             if (child.isFocusable()) {
                 if (firstFocusableIdx < 0) firstFocusableIdx = i;
                 final boolean isTopItem = (i == firstFocusableIdx);
+                final boolean isBottomItem = (i == count - 1);
                 child.setOnKeyListener((v, keyCode, event) -> {
                     if (event.getAction() != KeyEvent.ACTION_DOWN) return false;
                     if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
@@ -3883,7 +3931,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                         }
                         return true;
                     }
-                    if (keyCode == KeyEvent.KEYCODE_DPAD_UP && isTopItem) {
+                    if (bottomControls && keyCode == KeyEvent.KEYCODE_DPAD_UP && isTopItem) return true;
+                    if ((bottomControls && keyCode == KeyEvent.KEYCODE_DPAD_DOWN && isBottomItem)
+                            || (!bottomControls && keyCode == KeyEvent.KEYCODE_DPAD_UP && isTopItem)) {
                         suppressNextAutoOpenForView = activeButton;
                         popup.dismiss();
                         if (activeButton != null) activeButton.requestFocus();
@@ -4055,7 +4105,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 v.animate().cancel();
                 if (hasFocus) {
                     transitionHeroLabel("Settings");
-                    handler.postDelayed(autoOpenSettingsRunnable, SETTINGS_AUTO_OPEN_DEBOUNCE_MS);
+                    if (suppressNextAutoOpenForView == v) suppressNextAutoOpenForView = null;
+                    else handler.postDelayed(autoOpenSettingsRunnable, SETTINGS_AUTO_OPEN_DEBOUNCE_MS);
                 } else {
                     handler.postDelayed(autoCloseSettingsRunnable, 150L);
                 }
@@ -4122,7 +4173,31 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     }
 
     private void styleTopControls() {
-        if (!themedHome) return;
+        if (topButtonsContainer == null || topButtonsContainer.getVisibility() == View.GONE) return;
+        bottomControls = true;
+        ViewGroup oldParent = (ViewGroup) topButtonsContainer.getParent();
+        oldParent.removeView(topButtonsContainer);
+        FrameLayout.LayoutParams dock = new FrameLayout.LayoutParams(-2, Math.round(60 * density), Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+        dock.bottomMargin = Math.round(18 * density);
+        topButtonsContainer.setPadding(Math.round(12 * density), Math.round(8 * density), Math.round(12 * density), Math.round(8 * density));
+        GradientDrawable capsule = new GradientDrawable();
+        capsule.setColor(0xD010141C); capsule.setCornerRadius(30 * density);
+        capsule.setStroke(Math.max(1, Math.round(density)), 0x36FFFFFF);
+        topButtonsContainer.setBackground(capsule);
+        root.addView(topButtonsContainer, dock);
+        ViewGroup.LayoutParams header = clockBlock.getLayoutParams();
+        if (header instanceof RelativeLayout.LayoutParams) {
+            RelativeLayout.LayoutParams clockParams = (RelativeLayout.LayoutParams) header;
+            clockParams.removeRule(RelativeLayout.START_OF); clockParams.setMarginEnd(0);
+            clockBlock.setLayoutParams(clockParams);
+        }
+        View gridFrame = (View) grid.getParent();
+        if (gridFrame.getLayoutParams() instanceof ViewGroup.MarginLayoutParams) {
+            ViewGroup.MarginLayoutParams bounds = (ViewGroup.MarginLayoutParams) gridFrame.getLayoutParams();
+            bounds.bottomMargin = Math.round(84 * density); gridFrame.setLayoutParams(bounds);
+            ((ViewGroup) gridFrame).setClipChildren(true);
+        }
+        boolean firstVisible = true;
         View group = findViewById(R.id.pillQuickControls);
         if (group != null) {
             group.setBackground(null);
@@ -4130,7 +4205,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
         ((ViewGroup) topButtonsContainer).setClipChildren(false);
         if (group != null) { group.setPadding(0, 0, 0, 0); ViewGroup.LayoutParams quick = group.getLayoutParams(); quick.height = Math.round(44 * density); group.setLayoutParams(quick); }
-        ViewGroup.LayoutParams bar = topButtonsContainer.getLayoutParams(); bar.height = Math.round(44 * density); topButtonsContainer.setLayoutParams(bar);
+
         for (int id : new int[]{R.id.btnJioBox, R.id.btnWifi, R.id.btnScreensaver,
                 R.id.btnRam, R.id.btnPower, R.id.btnLibraryTop, R.id.btnSettings, R.id.btnInputs, R.id.btnReorder}) {
             View control = findViewById(id);
@@ -4138,11 +4213,34 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 control.setBackground(GlassView.focusBackground(density));
                 ViewGroup.MarginLayoutParams box = (ViewGroup.MarginLayoutParams) control.getLayoutParams();
                 box.width = box.height = Math.round(44 * density);
-                box.setMarginStart(id == R.id.btnJioBox ? 0 : Math.round(8 * density));
+                box.setMarginStart(firstVisible ? 0 : Math.round(8 * density));
+                if (control.getVisibility() == View.VISIBLE) firstVisible = false;
                 box.setMarginEnd(0);
                 control.setLayoutParams(box);
                 control.setPadding(0, 0, 0, 0);
                 control.setContentDescription(getTopBarToolLabel(control));
+                control.setNextFocusUpId(R.id.grid);
+                control.setOnKeyListener((view, key, event) -> {
+                    if (event.getAction() != KeyEvent.ACTION_DOWN) return false;
+                    if (key == KeyEvent.KEYCODE_DPAD_UP) {
+                        if (view.getId() == R.id.btnSettings) {
+                            if (settingsDropdownPopup == null || !settingsDropdownPopup.isShowing()) showSettingsDropdown(view);
+                            if (settingsDropdownPopup != null) {
+                                LinearLayout items = settingsDropdownPopup.getContentView().findViewById(R.id.rows);
+                                if (items != null && items.getChildCount() > 0) items.getChildAt(items.getChildCount() - 1).requestFocus();
+                            }
+                        } else focusTile(Math.max(0, Math.min(lastFocused, adapter.appCount() - 1)));
+                        return true;
+                    }
+                    if (key == KeyEvent.KEYCODE_DPAD_DOWN) return true;
+                    if (key == KeyEvent.KEYCODE_DPAD_LEFT || key == KeyEvent.KEYCODE_DPAD_RIGHT) {
+                        View next = getAdjacentTopCapsuleButton(view, key == KeyEvent.KEYCODE_DPAD_LEFT ? -1 : 1);
+                        if (openPopup != null) openPopup.dismiss();
+                        if (next != null) next.requestFocus();
+                        return true;
+                    }
+                    return false;
+                });
                 if (control instanceof TextView) {
                     TextView text = (TextView) control;
                     android.graphics.drawable.Drawable icon = text.getCompoundDrawablesRelative()[0];
@@ -4162,6 +4260,18 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                     return false;
                 });
             }
+        }
+        topButtonsContainer.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob) -> normalizeControlSpacing());
+        topButtonsContainer.post(this::normalizeControlSpacing);
+    }
+
+    private void normalizeControlSpacing() {
+        List<View> buttons = getVisibleTopCapsuleButtons();
+        for (int i = 0; i < buttons.size(); i++) {
+            View button = buttons.get(i);
+            ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) button.getLayoutParams();
+            int margin = i == 0 ? 0 : Math.round(8 * density);
+            if (lp.getMarginStart() != margin) { lp.setMarginStart(margin); button.setLayoutParams(lp); }
         }
     }
 
@@ -4303,9 +4413,15 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             View rowView = rows.getChildAt(i);
             rowView.setOnKeyListener((v, keyCode, event) -> {
                 if (event.getAction() != KeyEvent.ACTION_DOWN) return false;
-                if (keyCode == KeyEvent.KEYCODE_DPAD_UP && index == 0) {
+                if (bottomControls && keyCode == KeyEvent.KEYCODE_DPAD_UP && index == 0) return true;
+                if (keyCode == (bottomControls ? KeyEvent.KEYCODE_DPAD_DOWN : KeyEvent.KEYCODE_DPAD_UP) && index == (bottomControls ? childCount - 1 : 0)) {
                     isTransferringFocusBetweenPillAndDropdown = true;
                     View btnSettings = findViewById(R.id.btnSettings);
+                    if (bottomControls) {
+                        suppressNextAutoOpenForView = btnSettings;
+                        handler.removeCallbacks(autoOpenSettingsRunnable);
+                        if (settingsDropdownPopup != null) settingsDropdownPopup.dismiss();
+                    }
                     if (btnSettings != null) btnSettings.requestFocus();
                     handler.postDelayed(() -> isTransferringFocusBetweenPillAndDropdown = false, 60L);
                     return true;
@@ -4319,8 +4435,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                     handler.postDelayed(() -> isTransferringFocusBetweenPillAndDropdown = false, 60L);
                     return true;
                 } else if (keyCode == KeyEvent.KEYCODE_BACK) {
-                    if (settingsDropdownPopup != null) settingsDropdownPopup.dismiss();
                     View btnSettings = findViewById(R.id.btnSettings);
+                    suppressNextAutoOpenForView = btnSettings;
+                    handler.removeCallbacks(autoOpenSettingsRunnable);
+                    if (settingsDropdownPopup != null) settingsDropdownPopup.dismiss();
                     if (btnSettings != null) btnSettings.requestFocus();
                     return true;
                 }
@@ -4339,9 +4457,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         int measuredW = Math.max(width, panel.getMeasuredWidth());
         settingsDropdownPopup.setWidth(measuredW);
 
-        // Position directly below Pill B
+        // Footer Settings lifts its panel above the pill.
         int alignment = getResources().getBoolean(R.bool.rtl_menu_bar) ? Gravity.START : Gravity.END;
         dropIn(settingsDropdownPopup, panel, anchor, alignment);
+        if (bottomControls && rows.getChildCount() > 0) {
+            rows.getChildAt(rows.getChildCount() - 1).post(() -> rows.getChildAt(rows.getChildCount() - 1).requestFocusFromTouch());
+        }
     }
 
     private TextView addDropdownRowWithIcon(LinearLayout rows, int iconResId, String titleText, String statusText, SettingsRowAction action) {
@@ -4632,6 +4753,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private void enterAmbientIdleMode() {
         if (isAmbientIdleMode || isFinishing() || isDestroyed() || root == null || root.getWidth() == 0) return;
         isAmbientIdleMode = true;
+        glass.setLooping(false);
         View seconds = findViewById(R.id.rollingSeconds);
         if (themedHome && seconds != null) seconds.setVisibility(View.GONE);
         cancelTopCapsuleAutoOpen();
@@ -4672,7 +4794,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
         if (topButtonsContainer != null) {
             topButtonsContainer.animate().cancel();
-            topButtonsContainer.animate().alpha(0f).translationY(-60f * density).setDuration(AMBIENT_ANIM_MS).setInterpolator(relaxedEase).start();
+            topButtonsContainer.animate().alpha(0f).translationY((bottomControls ? 60f : -60f) * density).setDuration(AMBIENT_ANIM_MS).setInterpolator(relaxedEase).start();
         }
         if (hero != null) {
             hero.animate().cancel();
@@ -4851,7 +4973,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (topButtonsContainer != null) {
             topButtonsContainer.animate().cancel();
             topButtonsContainer.setVisibility(View.VISIBLE);
-            topButtonsContainer.setTranslationY(-120f * density);
+            topButtonsContainer.setTranslationY((bottomControls ? 60f : -120f) * density);
             topButtonsContainer.setAlpha(0f);
             topButtonsContainer.animate()
                     .translationY(0f)
@@ -4890,6 +5012,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                     .start();
         }
         if (glass != null && glassShown) {
+            glass.setLooping(true);
             glass.animate().cancel();
             glass.animate()
                     .alpha(1f)
@@ -4900,6 +5023,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     }
 
     private void setNightWatchUi(boolean visible) {
+        glass.setLooping(visible && glassShown);
         if (focusLabelAnimator != null) focusLabelAnimator.cancel();
         if (visible) {
             hero.setTranslationX(0f);
