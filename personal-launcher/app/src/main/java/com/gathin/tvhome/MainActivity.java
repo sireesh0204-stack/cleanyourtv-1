@@ -572,7 +572,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
         if (themedHome) {
             ThemeSettings themeSettings = new ThemeSettings(this);
-            sharingan = new DomainView(this, characterTheme, cfg.animations && !cfg.reducedMotion && themeSettings.motion(), themeSettings.sound(), heroArt.getDrawable());
+            sharingan = new DomainView(this, characterTheme, cfg.animations && !cfg.reducedMotion && themeSettings.motion(), themeSettings.sound(), heroArt.getDrawable(), bgExecutor);
             root.addView(sharingan, root.indexOfChild(heroArt) + 1, new FrameLayout.LayoutParams(-1, -1));
             root.removeView(glass);
             root.addView(glass, root.indexOfChild(hero) + 1);

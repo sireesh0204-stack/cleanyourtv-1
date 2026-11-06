@@ -21,6 +21,7 @@ final class DomainView extends View {
     private final CharacterStyle style;
     private final Bitmap wallpaper;
     private final boolean motion, sound;
+    private final java.util.concurrent.Executor executor;
     private final Runnable frame = this::invalidate;
     private boolean running, receiverRegistered;
     private final DomainLifecycle lifecycle = new DomainLifecycle();
@@ -33,8 +34,8 @@ final class DomainView extends View {
             else { lifecycle.screenOn(); beginFrames(); }
         }
     };
-    DomainView(Context context, ThemeCatalog.Theme theme, boolean motion, boolean sound, Drawable backdrop) {
-        super(context); this.theme = theme; this.motion = motion; this.sound = sound;
+    DomainView(Context context, ThemeCatalog.Theme theme, boolean motion, boolean sound, Drawable backdrop, java.util.concurrent.Executor executor) {
+        super(context); this.executor = executor; this.theme = theme; this.motion = motion; this.sound = sound;
         int resource = theme.character(context);
         character = resource == 0 ? null : BitmapFactory.decodeResource(getResources(), resource);
         eyes = eyeCoordinates(theme.id);
@@ -63,7 +64,7 @@ final class DomainView extends View {
         getContext().registerReceiver(wake, filter); receiverRegistered = true;
     }
     @Override protected void onDetachedFromWindow() {
-        stop(); if (receiverRegistered) { getContext().unregisterReceiver(wake); receiverRegistered = false; }
+        stop(); effects.close(); if (receiverRegistered) { getContext().unregisterReceiver(wake); receiverRegistered = false; }
         super.onDetachedFromWindow();
     }
     @Override protected void onDraw(Canvas canvas) {
@@ -72,7 +73,7 @@ final class DomainView extends View {
         long now = SystemClock.uptimeMillis();
         boolean animate = running && motion && ValueAnimator.areAnimatorsEnabled();
         float progress = animate ? Math.min(1f, (now - revealStarted) / 1200f) : 1f;
-        if (animate && style != CharacterStyle.SUKUNA) effects.ambient(canvas, now, wallpaper, gazeX / Math.max(1,getWidth()) * 2 - 1, gazeY / Math.max(1,getHeight()) * 2 - 1);
+        if (animate && style != CharacterStyle.SUKUNA) effects.ambient(canvas, now, wallpaper, gazeX / Math.max(1,getWidth()) * 2 - 1, gazeY / Math.max(1,getHeight()) * 2 - 1, progress, executor);
         if (character != null) {
         float scale = getHeight() * 0.84f / character.getHeight();
         float left = getWidth() * 0.97f - character.getWidth() * scale;
@@ -117,7 +118,7 @@ final class DomainView extends View {
         canvas.restoreToCount(save);
         }
         if (animate) {
-            if (style == CharacterStyle.SUKUNA) effects.ambient(canvas, now, wallpaper, 0, 0);
+            if (style == CharacterStyle.SUKUNA) effects.ambient(canvas, now, wallpaper, 0, 0, progress, executor);
             effects.reveal(canvas, progress);
         }
         removeCallbacks(frame);

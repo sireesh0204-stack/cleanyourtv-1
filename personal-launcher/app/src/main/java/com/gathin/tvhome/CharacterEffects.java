@@ -15,6 +15,7 @@ final class CharacterEffects {
     private final float[] mesh=new float[(12+1)*(6+1)*2];
     private final ItachiEyes itachi;
     private int w,h;
+    private ImageLightning lightning;
     CharacterEffects(String id) { style=CharacterStyle.forTheme(id);itachi=style==CharacterStyle.ITACHI?new ItachiEyes():null;fog.setShader(fogShader); }
     void size(int width,int height) {
         w=width;h=height;
@@ -22,7 +23,7 @@ final class CharacterEffects {
         haze.setShader(new RadialGradient(w*cx,h*.42f,Math.max(1,w*.34f),
                 new int[]{style.primary,style.primary&0xFFFFFF},null,Shader.TileMode.CLAMP));
     }
-    void ambient(Canvas c,long now,Bitmap wallpaper,float gx,float gy) {
+    void ambient(Canvas c,long now,Bitmap wallpaper,float gx,float gy,float wakeProgress,java.util.concurrent.Executor executor) {
         if(w==0||h==0||style==CharacterStyle.NONE)return;
         float t=now/1000f;
         if((style==CharacterStyle.BATMAN||style==CharacterStyle.DOOM)&&wallpaper!=null)cape(c,wallpaper,t);
@@ -35,12 +36,11 @@ final class CharacterEffects {
             case SUKUNA:
                 blood(c,t);break;
             case ZENITSU:
-                // Long continuous envelopes replace strobing flashes; gold and ice-blue stay distinct.
-                for(int i=0;i<3;i++) {
-                    float a=.52f+i*.18f;
-                    lightning(c,w*a,h*.22f,w*(a-.16f),h*.75f,t+i,i%2==0?style.primary:style.secondary,85+(int)(40*Math.sin(t*.85f+i)));
+                if (wallpaper != null) {
+                    if (lightning == null) lightning = new ImageLightning(wallpaper, executor);
+                    lightning.draw(c, w, h, now, wakeProgress);
                 }
-                particles(c,t,15,.48f,1f,style.primary,false);break;
+                break;
             case SAITAMA:
                 haze.setAlpha(35+(int)(8*Math.sin(t*.7f)));c.drawRect(0,0,w,h,haze);
                 particles(c,t,20,.56f,1f,style.primary,false);
@@ -80,15 +80,6 @@ final class CharacterEffects {
             paint.setStyle(Paint.Style.FILL);paint.setColor(color);paint.setAlpha((int)(85*Math.sin(p*Math.PI)));
             c.drawCircle(x,y,1+i%3*.45f,paint);
         }
-    }
-    private void lightning(Canvas c,float x,float y,float ex,float ey,float t,int color,int alpha) {
-        path.reset();path.moveTo(x,y);
-        for(int i=1;i<=10;i++) {
-            float p=i/10f,offset=(float)Math.sin(i*4.7+t*.7)*w*.012f*(float)Math.sin(p*Math.PI);
-            path.lineTo(x+(ex-x)*p+offset,y+(ey-y)*p);
-        }
-        paint.setStyle(Paint.Style.STROKE);paint.setColor(color);paint.setAlpha(alpha/3);paint.setStrokeWidth(7);c.drawPath(path,paint);
-        paint.setAlpha(alpha);paint.setStrokeWidth(1.4f);c.drawPath(path,paint);paint.setStyle(Paint.Style.FILL);
     }
     private void wind(Canvas c,float t,int color,int alpha) {
         paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(1.3f);paint.setColor(color);paint.setAlpha(alpha);
@@ -153,14 +144,12 @@ final class CharacterEffects {
         }
         c.save();c.clipPath(clip);paint.setColor(Color.WHITE);paint.setAlpha(255);c.drawBitmapMesh(bitmap,12,6,mesh,0,null,0,paint);c.restore();
     }
+    void close() { if (lightning != null) lightning.close(); lightning = null; }
     void reveal(Canvas c,float progress) {
-        if(progress>=1||style==CharacterStyle.NONE)return;
+        if(progress>=1||style==CharacterStyle.NONE||style==CharacterStyle.ZENITSU)return;
         float ease=1-(1-progress)*(1-progress);
         paint.setStyle(Paint.Style.STROKE);paint.setColor(style.primary);paint.setAlpha((int)((1-progress)*150));paint.setStrokeWidth(2);
-        if(style==CharacterStyle.ZENITSU) {
-            lightning(c,w*.24f,h*.75f,w*.98f,h*.19f,progress*5,style.primary,(int)((1-progress)*160));
-            lightning(c,w*.27f,h*.77f,w*.99f,h*.22f,progress*5,style.secondary,(int)((1-progress)*140));
-        }else if(style==CharacterStyle.SUKUNA) {
+        if(style==CharacterStyle.SUKUNA) {
             for(int i=0;i<2;i++){
                 float p=CharacterStyle.phase((long)(progress*1200),i*230,450);
                 paint.setAlpha((int)((1-p)*155));c.drawLine(w*(.54f+i*.12f),h*.18f,w*(.54f+i*.12f)+w*.24f*p,h*.18f+h*.46f*p,paint);
