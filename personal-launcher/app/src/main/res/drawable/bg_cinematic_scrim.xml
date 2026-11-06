@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Layer 1: Left-to-Right Horizontal Readability Scrim (Protects Clock, Date & Big App Label) -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="0"
+                android:startColor="#E606080D"
+                android:centerColor="#7306080D"
+                android:endColor="#1A06080D"
+                android:centerX="0.42"
+                android:type="linear" />
+        </shape>
+    </item>
+
+    <!-- Layer 2: Right-to-Left Horizontal Scrim (Protects Right-Aligned Spotlight Title & Controller) -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="180"
+                android:startColor="#D906080D"
+                android:centerColor="#6606080D"
+                android:endColor="#0006080D"
+                android:centerX="0.38"
+                android:type="linear" />
+        </shape>
+    </item>
+
+    <!-- Layer 3: Top-Down Header Scrim (Protects Top Clock, RAM, Wi-Fi & Settings Pills) -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="270"
+                android:startColor="#E605070B"
+                android:centerColor="#2605070B"
+                android:endColor="#0005070B"
+                android:centerY="0.28"
+                android:type="linear" />
+        </shape>
+    </item>
+
+    <!-- Layer 4: Bottom-Up Dock & Shelf Scrim (Protects Big App Name & Dock Cards) -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="90"
+                android:startColor="#F205070B"
+                android:centerColor="#8005070B"
+                android:endColor="#0005070B"
+                android:centerY="0.38"
+                android:type="linear" />
+        </shape>
+    </item>
+
+</layer-list>
